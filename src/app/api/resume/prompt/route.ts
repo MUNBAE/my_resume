@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
-import { getPageText, toNotionServiceError } from '@/lib/notion'
+import { toNotionServiceError } from '@/lib/notion'
 import {
   buildPromptResponse,
   parseBody,
   promptRequestSchema,
 } from '@/lib/resume-api'
-import { getCachedDocumentList } from '@/lib/notion-cache'
+import { getCachedDocumentList, getCachedPageContent } from '@/lib/notion-cache'
 
 // 선택한 문서로 AI(ChatGPT 등)에 붙여 넣을 프롬프트를 만든다 (PRD §6.2)
 export async function POST(request: NextRequest) {
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       documents.push({
         id,
         title: allowed.get(id) ?? '',
-        text: await getPageText(id),
+        text: (await getCachedPageContent(id)).text,
       })
     }
     return NextResponse.json(buildPromptResponse(documents))
