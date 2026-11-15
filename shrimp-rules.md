@@ -90,7 +90,8 @@
 3. 구현
 4. `npm run check-all` (typecheck + lint + format:check)
 5. `npm run build`
-6. ROADMAP 갱신 후 `/git:commit` 규칙으로 커밋
+6. `npm test` (Vitest, 테스트 파일은 `src/**/*.test.ts` 에 대상 파일 옆에 둔다)
+7. ROADMAP 갱신 후 `/git:commit` 규칙으로 커밋
 
 - 커밋: 이모지 + 컨벤셔널 형식, 한국어 (`✨ feat: ...`, `📝 docs: ...`). 훅(husky + lint-staged)을 우회(`--no-verify`)하지 않는다.
 
@@ -118,3 +119,9 @@
 - ❌ 회원가입·다중 사용자·PDF/DOCX 내보내기·공고 맞춤 생성 구현 (MVP 제외 범위)
 - ❌ `any` 사용, `@ts-ignore`로 오류 은폐
 - ❌ npm 외 패키지 매니저 사용 (`package-lock.json` 유지)
+
+## 테스트 규칙
+
+- 순수 로직(`src/lib/*`, `src/types/*`)을 바꾸면 같은 위치의 `*.test.ts`를 함께 갱신하고 `npm test`를 통과시킨다.
+- 테스트 데이터는 `src/test/fixtures.ts`의 가상 데이터를 쓴다. **실제 이력서·지원서 내용, 실제 키·페이지 ID를 테스트·저장소에 넣지 않는다.**
+- Notion 쓰기 테스트는 가짜 클라이언트를 주입한다 (`createResumePage(..., { client })`). 실제 Notion에 페이지를 만드는 테스트는 사용자 승인 후에만 한다.
