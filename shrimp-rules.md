@@ -44,10 +44,10 @@
 ## 환경변수 규칙
 
 - 변수 추가 시 **반드시 동시에** 수정: `src/lib/env.ts`(zod 스키마 + parse 객체), `.env.example`
-- 대상 키: `NOTION_API_KEY`, `NOTION_PORTFOLIO_PAGE_ID`
+- 대상 키: `NOTION_API_KEY`, `NOTION_PORTFOLIO_PAGE_ID`, `BASIC_AUTH_USER`, `BASIC_AUTH_PASSWORD` (접근 제한, `src/lib/auth-env.ts`)
 - 실제 키는 `.env.local`에만 둔다. `.env.example`은 값을 비워 둔다 (git 추적 대상)
 - 위 키에 `NEXT_PUBLIC_` 접두사 **금지**. 클라이언트 컴포넌트에서 `env` import **금지**.
-- `process.env`를 `env.ts` 외부에서 직접 읽지 않는다.
+- `process.env`는 `env.ts`와 `auth-env.ts` 외부에서 직접 읽지 않는다.
 - `.env.local`·실제 키 값을 커밋·출력하지 않는다.
 
 ## 기능 구현 규칙
