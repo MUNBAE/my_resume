@@ -5,7 +5,7 @@
 - 목적: Notion 포트폴리오 페이지 + 하위 문서(DB 없음) → 프롬프트 생성 → (사용자가 ChatGPT 등에서 실행) → 결과 JSON 붙여넣기·검증 → 웹 미리보기/수정 → Notion 새 페이지 저장 (개인용, 단일 사용자)
 - 스택: Next.js 15.5.3 (App Router, Turbopack) / React 19.1.0 / TypeScript strict / Tailwind v4 / shadcn/ui (new-york) / Zod 4 / react-hook-form
 - 외부 연동 (예정): `@notionhq/client`, `@anthropic-ai/sdk`
-- 현재 상태: 스타터킷만 존재. 이력서 기능은 `docs/ROADMAP.md` Phase 순서대로 구현한다.
+- 현재 상태: 이력서 병합 기능 구현 완료(스타터킷의 랜딩·로그인·회원가입·메뉴는 제거됨). 남은 작업은 `docs/ROADMAP.md` 참고.
 
 ## 언어 규칙
 
@@ -77,11 +77,11 @@
 | ---------------------- | ------------------------------------------------------------------------------------------------------- |
 | 환경변수 추가/삭제     | `src/lib/env.ts` + `.env.example`                                                                       |
 | 이력서 Zod 스키마 변경 | `src/lib/merge-prompt.ts`(프롬프트 지시문·검증) + `src/lib/notion.ts`(변환) + `src/components/resume/*` |
-| 새 라우트 추가         | `src/components/navigation/main-nav.tsx`, `mobile-nav.tsx` 링크                                         |
+| 새 라우트 추가         | `src/components/layout/header.tsx` 의 `STEPS`(단계 표시)에 해당 단계를 추가                             |
 | Phase 작업 완료        | `docs/ROADMAP.md` 체크박스·진행 현황 갱신 (`/docs:update-roadmap`)                                      |
 | 디렉토리 구조 변경     | `docs/guides/project-structure.md`                                                                      |
 | 의존성 추가            | `package.json` + `package-lock.json` (npm install로 처리)                                               |
-| 사이트 메타 변경       | `src/app/layout.tsx` metadata (현재 스타터 문구, 이력서 앱에 맞게 교체)                                 |
+| 사이트 메타 변경       | `src/app/layout.tsx` metadata                                                                           |
 
 ## 워크플로우
 
@@ -106,7 +106,7 @@
 - 스키마 위치 모호 → `src/types/resume.ts` (PRD 우선)
 - 테스트 도구 필요 → 도입 전 사용자 승인 받는다 (현재 테스트 러너 없음)
 - 접근 제한 방식·AI 실행 방식·diff 기준본 등 ROADMAP "미결정 사항" → 임의 확정하지 말고 사용자에게 질문한다
-- 스타터 잔여 페이지(landing, login, signup) 삭제 → 사용자 확인 후 수행한다
+- 스타터에서 제거한 화면(랜딩, 로그인, 회원가입)을 다시 만들지 않는다. 이 앱은 문서 선택 → 검토·저장 흐름만 둔다.
 - 개인 데이터를 배포 환경에 노출하기 전 ROADMAP 6.1(접근 제한)이 완료되어야 한다
 
 ## 금지 사항

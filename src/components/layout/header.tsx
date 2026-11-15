@@ -1,61 +1,62 @@
 'use client'
 
-import { useState } from 'react'
-import { Menu } from 'lucide-react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
-import { MainNav } from '@/components/navigation/main-nav'
-import { MobileNav } from '@/components/navigation/mobile-nav'
-import { Container } from './container'
+import { usePathname } from 'next/navigation'
+
+import { Container } from '@/components/layout/container'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { cn } from '@/lib/utils'
+
+// 이 도구의 작업 순서. 현재 단계를 머리글에 표시한다
+const STEPS = [
+  { href: '/resume', label: '문서 선택' },
+  { href: '/resume/merge', label: '검토·저장' },
+] as const
 
 export function Header() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const pathname = usePathname()
 
-  // 화면 폭에 따른 분기는 JS(useMediaQuery)가 아니라 CSS 클래스로 한다.
-  // JS로 분기하면 서버가 항상 데스크톱 구조를 렌더링해 모바일에서 하이드레이션 불일치가 난다.
   return (
     <header className="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 w-full border-b backdrop-blur">
-      <Container>
-        <div className="flex h-16 items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center gap-6">
-            <Link href="/" className="flex items-center space-x-2">
-              <span className="text-xl font-bold">NextJS Starter</span>
-            </Link>
+      <Container size="md">
+        <div className="flex h-14 items-center justify-between gap-3">
+          <Link href="/resume" className="text-lg font-bold whitespace-nowrap">
+            이력서 통합
+          </Link>
 
-            {/* Desktop Navigation */}
-            <div className="hidden md:block">
-              <MainNav />
-            </div>
-          </div>
-
-          {/* Right Side */}
-          <div className="flex items-center gap-4">
-            <div className="hidden md:block">
-              <Link href="/login">
-                <Button variant="outline" size="sm">
-                  로그인
-                </Button>
-              </Link>
-            </div>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <nav aria-label="작업 단계">
+              <ol className="flex items-center gap-1 text-xs sm:gap-2 sm:text-sm">
+                {STEPS.map((step, index) => {
+                  const current = pathname === step.href
+                  return (
+                    <li
+                      key={step.href}
+                      className="flex items-center gap-1 sm:gap-2"
+                    >
+                      {index > 0 && (
+                        <span className="text-muted-foreground" aria-hidden>
+                          ›
+                        </span>
+                      )}
+                      <Link
+                        href={step.href}
+                        aria-current={current ? 'step' : undefined}
+                        className={cn(
+                          'rounded-md px-1.5 py-1 whitespace-nowrap transition-colors',
+                          current
+                            ? 'bg-accent text-accent-foreground font-semibold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {index + 1}. {step.label}
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ol>
+            </nav>
             <ThemeToggle />
-
-            {/* Mobile Menu Button */}
-            <div className="md:hidden">
-              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Menu className="h-5 w-5" />
-                    <span className="sr-only">메뉴 열기</span>
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-[300px] sm:w-[400px]">
-                  <MobileNav onClose={() => setMobileMenuOpen(false)} />
-                </SheetContent>
-              </Sheet>
-            </div>
           </div>
         </div>
       </Container>

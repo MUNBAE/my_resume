@@ -50,7 +50,7 @@ npm run dev                  # http://localhost:3000/resume
 
 ## 접근 제한 (Basic 인증)
 
-개인 이력서를 보호하기 위해 `/resume`과 `/api/resume`는 HTTP Basic 인증을 요구합니다. 홈 화면은 보호 대상이 아닙니다.
+개인 이력서를 보호하기 위해 `/resume`과 `/api/resume`는 HTTP Basic 인증을 요구합니다. `/`는 `/resume`으로 이동만 하며 데이터를 담지 않아 보호 대상이 아닙니다. 로그인·회원가입 같은 별도 화면은 없습니다.
 
 | 환경             | 동작                                                                                       |
 | ---------------- | ------------------------------------------------------------------------------------------ |
@@ -99,8 +99,10 @@ npm run dev                  # http://localhost:3000/resume
 ```
 src/
 ├─ app/
-│  ├─ resume/                 # 문서 선택(/resume), 병합 미리보기(/resume/merge), 공통 layout·loading·error
+│  ├─ page.tsx                # / → /resume 이동
+│  ├─ resume/                 # 문서 선택(/resume), 검토·저장(/resume/merge), 공통 layout·loading·error
 │  └─ api/resume/{sources,prompt,merge,save}/route.ts
+├─ components/layout/         # 머리글(작업 단계 표시)
 ├─ components/resume/         # 선택 목록, 프롬프트·결과 흐름, 미리보기, diff, 충돌 선택, 편집기, 저장 다이얼로그
 ├─ lib/
 │  ├─ notion.ts               # Notion 클라이언트(직렬화·재시도), 조회, 새 페이지 생성
