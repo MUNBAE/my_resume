@@ -167,7 +167,16 @@ function EducationItem({ item }: { item: Education }) {
     <article>
       <ItemHeader
         title={item.school}
-        subtitle={item.major}
+        subtitle={
+          [
+            item.major,
+            item.degree,
+            item.status,
+            item.gpa ? `학점 ${item.gpa}` : item.program,
+          ]
+            .filter(Boolean)
+            .join(' · ') || undefined
+        }
         period={formatPeriod(item.startDate, item.endDate)}
         sources={item.sources}
       />
@@ -180,7 +189,9 @@ function CertificationItem({ item }: { item: Certification }) {
     <article>
       <ItemHeader
         title={item.name}
-        subtitle={item.issuer}
+        subtitle={
+          [item.issuer, item.grade].filter(Boolean).join(' · ') || undefined
+        }
         period={item.date?.replace('-', '.')}
         sources={item.sources}
       />

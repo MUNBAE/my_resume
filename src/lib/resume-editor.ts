@@ -111,6 +111,10 @@ const sectionItems = (resume: Resume, section: DiffSection): AnyItem[] =>
 // 값이 비어 있지 않은 선택만 '해결됨'으로 본다
 const isFilled = (value: string | undefined) => (value?.trim() ?? '') !== ''
 
+// 종료일 "현재"는 진행 중(null)으로 바꿔 저장한다
+const toFieldValue = (field: string, value: string): string | null =>
+  field === 'endDate' && value.trim() === '현재' ? null : value
+
 /** 거절하지 않은 항목 중 아직 선택하지 않은 충돌 개수 */
 export function countUnresolvedConflicts(
   resume: Resume,
@@ -151,7 +155,9 @@ export function buildFinalResume(resume: Resume, state: EditorState): Resume {
 
         for (const conflict of item.conflicts) {
           const chosen = state.resolutions[fieldKey(key, conflict.field)]
-          if (isFilled(chosen)) next[conflict.field] = chosen
+          if (isFilled(chosen)) {
+            next[conflict.field] = toFieldValue(conflict.field, chosen!)
+          }
         }
         // 충돌 선택이 끝난 항목은 충돌 목록을 비운다
         next.conflicts = item.conflicts.filter(
@@ -160,7 +166,10 @@ export function buildFinalResume(resume: Resume, state: EditorState): Resume {
 
         const prefix = `${key}.`
         for (const [k, value] of Object.entries(state.fieldEdits)) {
-          if (k.startsWith(prefix)) next[k.slice(prefix.length)] = value
+          if (k.startsWith(prefix)) {
+            const field = k.slice(prefix.length)
+            next[field] = toFieldValue(field, value)
+          }
         }
 
         if (item.achievements) {

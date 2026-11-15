@@ -18,7 +18,8 @@ export const conflictSchema = z.object({
   candidates: z
     .array(
       z.object({
-        value: z.string(),
+        // AI가 "현재 재직 중"을 null로 내는 경우가 있어 '현재'로 받아들인다
+        value: z.preprocess(v => (v === null ? '현재' : v), z.string()),
         sources: sourcesSchema,
       })
     )
@@ -73,6 +74,10 @@ export const educationSchema = z.object({
   ...itemBase,
   school: z.string().min(1),
   major: z.string().optional(),
+  degree: z.string().optional(), // 학사, 석사 등
+  status: z.string().optional(), // 졸업, 재학, 교육이수 등
+  gpa: z.string().optional(),
+  program: z.string().optional(), // 교육과정명 (대학 외 교육)
   startDate: periodSchema.optional(),
   endDate: periodSchema.nullable().optional(),
 })
@@ -82,6 +87,7 @@ export const certificationSchema = z.object({
   ...itemBase,
   name: z.string().min(1),
   issuer: z.string().optional(),
+  grade: z.string().optional(), // 등급·점수 (예: OPIC IM1)
   date: periodSchema.optional(),
 })
 

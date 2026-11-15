@@ -126,7 +126,16 @@ export function toNotionBlocks(resume: Resume): BlockObjectRequest[] {
         bullet(
           joinNonEmpty(
             [
-              joinNonEmpty([e.school, e.major], ' · '),
+              joinNonEmpty(
+                [
+                  e.school,
+                  e.major,
+                  e.degree,
+                  e.status,
+                  e.gpa ? `학점 ${e.gpa}` : e.program,
+                ],
+                ' · '
+              ),
               period(e.startDate, e.endDate),
             ],
             '  |  '
@@ -142,7 +151,7 @@ export function toNotionBlocks(resume: Resume): BlockObjectRequest[] {
       blocks.push(
         bullet(
           joinNonEmpty(
-            [joinNonEmpty([c.name, c.issuer], ' · '), part(c.date)],
+            [joinNonEmpty([c.name, c.issuer, c.grade], ' · '), part(c.date)],
             '  |  '
           )
         )
