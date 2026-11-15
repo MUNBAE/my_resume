@@ -2,7 +2,7 @@
 
 ## 프로젝트 개요
 
-- 목적: Notion 이력서 DB + Q&A DB → Claude API 병합·보강 → 웹 미리보기/수정 → Notion 새 페이지 저장 (개인용, 단일 사용자)
+- 목적: Notion 포트폴리오 페이지 + 하위 문서(DB 없음) → Claude API 병합·보강 → 웹 미리보기/수정 → Notion 새 페이지 저장 (개인용, 단일 사용자)
 - 스택: Next.js 15.5.3 (App Router, Turbopack) / React 19.1.0 / TypeScript strict / Tailwind v4 / shadcn/ui (new-york) / Zod 4 / react-hook-form
 - 외부 연동 (예정): `@notionhq/client`, `@anthropic-ai/sdk`
 - 현재 상태: 스타터킷만 존재. 이력서 기능은 `docs/ROADMAP.md` Phase 순서대로 구현한다.
@@ -44,7 +44,8 @@
 ## 환경변수 규칙
 
 - 변수 추가 시 **반드시 동시에** 수정: `src/lib/env.ts`(zod 스키마 + parse 객체), `.env.example`
-- 대상 키: `NOTION_API_KEY`, `NOTION_RESUME_DB_ID`, `NOTION_QNA_DB_ID`, `ANTHROPIC_API_KEY`
+- 대상 키: `NOTION_API_KEY`, `NOTION_PORTFOLIO_PAGE_ID`, `ANTHROPIC_API_KEY`
+- 실제 키는 `.env.local`에만 둔다. `.env.example`은 값을 비워 둔다 (git 추적 대상)
 - 위 키에 `NEXT_PUBLIC_` 접두사 **금지**. 클라이언트 컴포넌트에서 `env` import **금지**.
 - `process.env`를 `env.ts` 외부에서 직접 읽지 않는다.
 - `.env.local`·실제 키 값을 커밋·출력하지 않는다.
@@ -53,11 +54,12 @@
 
 - Notion·Claude 호출은 **서버(Route Handler / Server Action)에서만** 수행한다.
 - Claude 응답은 JSON 구조화 출력으로 받고 `src/types/resume.ts`의 Zod 스키마로 `safeParse` 검증한다. 검증 실패 시 사용자에게 오류를 반환한다.
-- 병합 결과의 모든 항목에 `sources`(이력서/답변 ID)를 포함한다. 근거 없는 내용 생성 금지.
+- 병합 결과의 모든 항목에 `sources`(Notion 문서 페이지 ID)를 포함한다. 근거 없는 내용 생성 금지.
 - 충돌 항목(기간·직함 불일치)은 임의 선택하지 않고 `conflicts`로 사용자에게 선택지를 제공한다.
 - Notion 저장은 **새 페이지 생성만** 허용한다. 기존 이력서 페이지 수정·삭제 금지 (비파괴 원칙).
 - Notion API는 직렬화·캐싱으로 속도 제한(평균 3 req/s)을 지킨다.
-- Notion DB 속성명은 가정안이다. 하드코딩 전에 실제 구조를 확인한다 (ROADMAP 2.1).
+- 데이터 소스는 DB가 아니라 포트폴리오 페이지의 `child_page` 하위 문서다. `databases.query`를 쓰지 않는다. 모든 페이지의 속성은 `title`뿐이며 날짜는 `created_time`/`last_edited_time`을 쓴다 (PRD §5).
+- 새 이력서 저장 위치는 가정안(포트폴리오 하위 페이지)이다. 확정 전 변경하지 않는다.
 
 ## 폼 규칙
 
