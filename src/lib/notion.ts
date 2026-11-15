@@ -10,6 +10,8 @@ import {
 } from '@notionhq/client'
 
 import { env } from '@/lib/env'
+import { chunkBlocks, toNotionBlocks } from '@/lib/notion-blocks'
+import type { Resume } from '@/types/resume'
 
 // 사용자에게 보여줄 한글 메시지를 가진 Notion 오류 (PRD §10)
 export class NotionServiceError extends Error {
@@ -418,4 +420,65 @@ export async function getPortfolioText(): Promise<NotionDocumentContent> {
     getPageContent(id),
   ])
   return { id, title, text }
+}
+
+// ---------------------------------------------------------------------------
+// 새 이력서 페이지 생성 (비파괴: 새 페이지 생성과 그 페이지에 대한 append만 수행한다)
+// ---------------------------------------------------------------------------
+
+export interface CreatedResumePage {
+  id: string
+  url: string
+  /** 생성된 본문 블록 수 */
+  blockCount: number
+}
+
+interface CreateResumePageOptions {
+  /** 새 페이지의 부모 페이지 ID (기본: 포트폴리오 페이지, 가정안) */
+  parentId?: string
+  /** 테스트용 클라이언트 주입 */
+  client?: Client
+}
+
+const TITLE_LIMIT = 200
+
+/**
+ * 확정된 이력서를 포트폴리오 페이지 아래 새 하위 페이지로 만든다.
+ * Notion은 요청당 100블록까지만 받으므로 첫 100개는 pages.create로,
+ * 나머지는 새 페이지에 blocks.children.append로 이어 붙인다.
+ * 기존 페이지를 수정·삭제하는 호출은 하지 않는다. (PRD §10 비파괴)
+ */
+export async function createResumePage(
+  title: string,
+  resume: Resume,
+  options: CreateResumePageOptions = {}
+): Promise<CreatedResumePage> {
+  const notion = options.client ?? getNotionClient()
+  const parentId = options.parentId ?? env.NOTION_PORTFOLIO_PAGE_ID
+  const blocks = toNotionBlocks(resume)
+  const [first = [], ...rest] = chunkBlocks(blocks)
+
+  const page = await notionRequest(() =>
+    notion.pages.create({
+      parent: { page_id: parentId },
+      properties: {
+        title: {
+          title: [{ text: { content: title.trim().slice(0, TITLE_LIMIT) } }],
+        },
+      },
+      children: first,
+    })
+  )
+
+  for (const chunk of rest) {
+    await notionRequest(() =>
+      notion.blocks.children.append({ block_id: page.id, children: chunk })
+    )
+  }
+
+  return {
+    id: page.id,
+    url: 'url' in page ? page.url : '',
+    blockCount: blocks.length,
+  }
 }
