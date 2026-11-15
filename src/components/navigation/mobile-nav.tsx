@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator'
 
 const navItems = [
   { title: '홈', href: '/' },
+  { title: '이력서', href: '/resume' },
   { title: '로그인', href: '/login' },
 ]
 

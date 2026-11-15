@@ -9,7 +9,10 @@ interface NavItem {
   href: string
 }
 
-const navItems: NavItem[] = [{ title: '홈', href: '/' }]
+const navItems: NavItem[] = [
+  { title: '홈', href: '/' },
+  { title: '이력서', href: '/resume' },
+]
 
 export function MainNav() {
   const pathname = usePathname()

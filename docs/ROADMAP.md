@@ -13,14 +13,14 @@
 
 ## 📊 진행 현황
 
-| Phase | 이름                      | 규모 | 상태      | 진행률 |
-| ----- | ------------------------- | ---- | --------- | ------ |
-| 1     | 기반 구축                 | S    | 🔄 진행중 | 3/5    |
-| 2     | Notion 연동 (조회)        | M    | 🔄 진행중 | 1/7    |
-| 3     | Claude 병합·보강 로직     | L    | ⬜ 예정   | 0/9    |
-| 4     | 화면 구현 (선택·미리보기) | L    | ⬜ 예정   | 0/9    |
-| 5     | Notion 저장               | M    | ⬜ 예정   | 0/5    |
-| 6     | 품질·접근 제한·배포       | M    | ⬜ 예정   | 0/7    |
+| Phase | 이름                      | 규모 | 상태    | 진행률 |
+| ----- | ------------------------- | ---- | ------- | ------ |
+| 1     | 기반 구축                 | S    | ✅ 완료 | 5/5    |
+| 2     | Notion 연동 (조회)        | M    | ✅ 완료 | 7/7    |
+| 3     | Claude 병합·보강 로직     | L    | ⬜ 예정 | 0/9    |
+| 4     | 화면 구현 (선택·미리보기) | L    | ⬜ 예정 | 0/9    |
+| 5     | Notion 저장               | M    | ⬜ 예정 | 0/5    |
+| 6     | 품질·접근 제한·배포       | M    | ⬜ 예정 | 0/7    |
 
 총 작업 수: 42
 
@@ -50,14 +50,14 @@ Phase 1 (기반)
   - 완료 조건: 변수 누락 시 서버 시작/호출에서 zod 오류가 명확히 발생한다.
 - [x] 1.3 `.env.example` 작성 및 시크릿 커밋 방지 확인 `[S]` — `.env.example`, `.gitignore`의 `.env*` 규칙 점검
   - 완료 조건: `.env.local`이 git 추적 대상이 아니고, `.env.example`에 3개 키가 값 없이 문서화되어 있다.
-- [ ] 1.4 이력서 도메인 Zod 스키마 정의 `[M]` — `src/types/resume.ts`에 경력·프로젝트·기술·학력·자격, 항목별 `sources`(문서 ID), `conflicts` 포함 (PRD §3.2, §7)
+- [x] 1.4 이력서 도메인 Zod 스키마 정의 `[M]` — `src/types/resume.ts`에 경력·프로젝트·기술·학력·자격, 항목별 `sources`(문서 ID), `conflicts` 포함 (PRD §3.2, §7)
   - 완료 조건: 샘플 JSON이 `safeParse`를 통과하고, 출처 누락 항목은 실패한다.
-- [ ] 1.5 `/resume` 라우트 골격 및 진입 링크 추가 `[S]` — `src/app/resume/page.tsx`, `src/app/resume/merge/page.tsx` 빈 페이지, 헤더/메인 네비에 링크 (`src/components/navigation/main-nav.tsx`)
+- [x] 1.5 `/resume` 라우트 골격 및 진입 링크 추가 `[S]` — `src/app/resume/page.tsx`, `src/app/resume/merge/page.tsx` 빈 페이지, 헤더/메인 네비에 링크 (`src/components/navigation/main-nav.tsx`)
   - 완료 조건: `/resume`, `/resume/merge`가 200으로 렌더링되고 네비에서 이동 가능하다.
 
 ### ✅ Phase 완료 기준
 
-- [ ] `.env.local` 없이 서버 실행 시 환경변수 오류 메시지가 나오고, 설정 후 정상 기동한다.
+- [x] `.env.local` 없이 서버 실행 시 환경변수 오류 메시지가 나오고, 설정 후 정상 기동한다.
 - [ ] `npm run check-all` 및 `npm run build` 통과
 
 ## Phase 2. Notion 연동 (조회)
@@ -70,23 +70,23 @@ Phase 1 (기반)
 
 - [x] 2.1 포트폴리오 페이지 연결 및 실제 구조 확인 `[S]` — Integration에 포트폴리오 페이지 연결, 구조 확인 완료(PRD §5). `.env.local`에 키·페이지 ID 설정
   - 완료 조건: 실제 구조가 PRD §5에 반영되고 `.env.local`에 키와 페이지 ID가 설정된다. (2026-11-15 완료)
-- [ ] 2.2 Notion 클라이언트 및 직렬화·재시도 래퍼 구현 `[M]` — `src/lib/notion.ts`에 요청 큐(동시성 1, 간격 ≈350ms), 429/5xx 지수 백오프 (PRD §7, §10)
+- [x] 2.2 Notion 클라이언트 및 직렬화·재시도 래퍼 구현 `[M]` — `src/lib/notion.ts`에 요청 큐(동시성 1, 간격 ≈350ms), 429/5xx 지수 백오프 (PRD §7, §10)
   - 완료 조건: 연속 20회 호출 시 429 없이 완료되고, 강제 실패 시 재시도 후 명확한 오류를 던진다.
-- [ ] 2.3 포트폴리오 하위 문서 목록 조회 함수 구현 `[S]` — `getDocumentList()`: 포트폴리오 페이지의 `child_page` 블록을 읽어 제목·생성일·수정일 반환, 페이지네이션 처리 (PRD §3.1)
+- [x] 2.3 포트폴리오 하위 문서 목록 조회 함수 구현 `[S]` — `getDocumentList()`: 포트폴리오 페이지의 `child_page` 블록을 읽어 제목·생성일·수정일 반환, 페이지네이션 처리 (PRD §3.1)
   - 완료 조건: 하위 문서 4건이 최신 수정순으로 반환된다.
-- [ ] 2.4 페이지 블록 → 구조화 텍스트 변환 구현 `[M]` — `getPageText(pageId)`: 중첩 블록 재귀, 제목·리스트·토글·표·인용 처리, 이미지 등 미지원 블록은 건너뛰되 로그. `child_page`는 재귀하지 않는다
+- [x] 2.4 페이지 블록 → 구조화 텍스트 변환 구현 `[M]` — `getPageText(pageId)`: 중첩 블록 재귀, 제목·리스트·토글·표·인용 처리, 이미지 등 미지원 블록은 건너뛰되 로그. `child_page`는 재귀하지 않는다
   - 완료 조건: 실제 문서 1건의 변환 결과에 경력·학력 등 본문이 누락 없이 포함된다.
-- [ ] 2.5 포트폴리오 본문 문서 조회 구현 `[S]` — `getPortfolioText()`: 포트폴리오 페이지 자체 본문(하위 페이지 제외)을 하나의 문서로 반환 (PRD §3.1)
+- [x] 2.5 포트폴리오 본문 문서 조회 구현 `[S]` — `getPortfolioText()`: 포트폴리오 페이지 자체 본문(하위 페이지 제외)을 하나의 문서로 반환 (PRD §3.1)
   - 완료 조건: 하위 페이지 내용이 중복 포함되지 않고 포트폴리오 본문만 반환된다.
-- [ ] 2.6 `GET /api/resume/sources` Route Handler 구현 `[S]` — `src/app/api/resume/sources/route.ts`, 본문은 제외한 문서 목록 메타데이터 반환 (PRD §6.2)
+- [x] 2.6 `GET /api/resume/sources` Route Handler 구현 `[S]` — `src/app/api/resume/sources/route.ts`, 본문은 제외한 문서 목록 메타데이터 반환 (PRD §6.2)
   - 완료 조건: 호출 시 `{ documents }` JSON이 반환되고 오류 시 한글 메시지와 4xx/5xx 코드가 반환된다.
-- [ ] 2.7 조회 결과 캐싱 적용 `[S]` — `unstable_cache` 또는 `revalidate` 기반 짧은 TTL, 수동 새로고침 시 무효화 (PRD §7)
+- [x] 2.7 조회 결과 캐싱 적용 `[S]` — `unstable_cache` 또는 `revalidate` 기반 짧은 TTL, 수동 새로고침 시 무효화 (PRD §7)
   - 완료 조건: 같은 요청 반복 시 Notion 호출 횟수가 줄어드는 것을 로그로 확인한다.
 
 ### ✅ Phase 완료 기준
 
-- [ ] 브라우저/`curl`로 `/api/resume/sources` 호출 시 실제 Notion 데이터가 반환된다.
-- [ ] 본문 변환 결과를 서버 로그/임시 확인 경로로 열람해 누락이 없음을 확인했다.
+- [x] 브라우저/`curl`로 `/api/resume/sources` 호출 시 실제 Notion 데이터가 반환된다.
+- [x] 본문 변환 결과를 서버 로그/임시 확인 경로로 열람해 누락이 없음을 확인했다.
 - [ ] `npm run check-all` 및 `npm run build` 통과
 
 ## Phase 3. Claude 병합·보강 로직
