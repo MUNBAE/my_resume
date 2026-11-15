@@ -9,6 +9,9 @@ import {
 } from '@/lib/resume-api'
 
 // 사용자가 붙여 넣은 AI 결과를 검증·정리해 병합 초안을 돌려준다 (PRD §6.2)
+// 서버리스 환경에서 함수가 너무 일찍 끊기지 않도록 실행 시간을 늘린다 (일반 요청은 2초 안팎)
+export const maxDuration = 30
+
 export async function POST(request: NextRequest) {
   let body: unknown
   try {

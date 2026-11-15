@@ -11,6 +11,7 @@ import {
 
 import { env } from '@/lib/env'
 import { chunkBlocks, toNotionBlocks } from '@/lib/notion-blocks'
+import { cleanNotionMarkdown } from '@/lib/notion-markdown'
 import type { Resume } from '@/types/resume'
 
 // 사용자에게 보여줄 한글 메시지를 가진 Notion 오류 (PRD §10)
@@ -366,11 +367,13 @@ async function renderBlocks(
 }
 
 /**
- * 페이지 본문을 마크다운 형태의 구조화 텍스트로 변환한다.
+ * 블록을 하나씩 내려받아 마크다운 텍스트로 변환한다 (느린 방식, 마크다운 API의 대체 경로).
  * child_page는 별도 문서이므로 재귀하지 않고, 이미지 등 텍스트가 없는
- * 블록은 건너뛰며 로그를 남긴다. (PRD §3.1)
+ * 블록은 건너뛰며 로그를 남긴다. 중첩 블록마다 호출이 필요해 속도 제한에 취약하다.
  */
-export async function getPageContent(pageId: string): Promise<PageTextResult> {
+export async function getPageContentByBlocks(
+  pageId: string
+): Promise<PageTextResult> {
   const skippedBlocks: Record<string, number> = {}
   const blocks = await listBlockChildren(pageId)
   const lines = await renderBlocks(blocks, 0, skippedBlocks)
@@ -383,6 +386,36 @@ export async function getPageContent(pageId: string): Promise<PageTextResult> {
   }
 
   return { text: lines.join('\n').trim(), skippedBlocks }
+}
+
+/**
+ * 페이지 본문을 마크다운 텍스트로 읽는다. (PRD §3.1)
+ * Notion 마크다운 API로 호출 1번에 읽고(이미지는 제거, 표는 | 행으로 변환),
+ * API를 쓸 수 없거나 응답이 잘린 경우에만 블록 순회 방식으로 되돌아간다.
+ * child_page는 별도 문서이므로 본문에 포함하지 않는다.
+ */
+export async function getPageContent(pageId: string): Promise<PageTextResult> {
+  try {
+    const response = await notionRequest(() =>
+      getNotionClient().pages.retrieveMarkdown({ page_id: pageId })
+    )
+    if (!response.truncated && response.unknown_block_ids.length === 0) {
+      const { text, images } = cleanNotionMarkdown(response.markdown)
+      return { text, skippedBlocks: images > 0 ? { image: images } : {} }
+    }
+    console.warn(
+      `[notion] 마크다운이 완전하지 않아 블록 방식으로 다시 읽습니다(${pageId}).`
+    )
+  } catch (error) {
+    // 400: 마크다운 API를 쓸 수 없는 경우(미지원 등) — 그 밖의 오류는 그대로 알린다
+    if (!(error instanceof NotionServiceError) || error.status !== 400) {
+      throw error
+    }
+    console.warn(
+      `[notion] 마크다운 API를 쓸 수 없어 블록 방식으로 읽습니다(${pageId}).`
+    )
+  }
+  return getPageContentByBlocks(pageId)
 }
 
 export async function getPageText(pageId: string): Promise<string> {
