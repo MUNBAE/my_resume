@@ -1,4 +1,6 @@
 // 수동 연계용 프롬프트 생성 (서버·클라이언트 공용 순수 함수 모음, 외부 호출 없음)
+import type { z } from 'zod'
+import { resumeSchema, type Resume } from '@/types/resume'
 
 // 프롬프트에 넣을 문서 (출처로 쓸 Notion 페이지 ID 포함)
 export interface PromptDocument {
@@ -157,4 +159,220 @@ export function buildMergePrompt(documents: PromptDocument[]): string {
     '## 입력 문서',
     formatDocuments(documents),
   ].join('\n\n')
+}
+
+// ---------------------------------------------------------------------------
+// AI 결과에서 JSON 추출
+// ---------------------------------------------------------------------------
+
+export type ExtractJsonResult =
+  | { ok: true; value: unknown }
+  | { ok: false; message: string }
+
+// 문자열 안의 중괄호를 무시하고 첫 '{'부터 짝이 맞는 '}'까지 잘라낸다
+function scanBalancedObject(text: string): string | undefined {
+  const start = text.indexOf('{')
+  if (start === -1) return undefined
+
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === '"') inString = false
+      continue
+    }
+    if (ch === '"') inString = true
+    else if (ch === '{') depth++
+    else if (ch === '}') {
+      depth--
+      if (depth === 0) return text.slice(start, i + 1)
+    }
+  }
+  // 닫히지 않은 JSON(응답이 중간에 잘린 경우)
+  return text.slice(start)
+}
+
+function describeParseError(candidate: string, error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error)
+  const position = /position (\d+)/.exec(detail)?.[1]
+  const near =
+    position !== undefined
+      ? ` 오류 위치 근처: "${candidate.slice(Math.max(0, Number(position) - 20), Number(position) + 20).replace(/\s+/g, ' ')}"`
+      : ''
+  const truncated = candidate.trimEnd().endsWith('}')
+    ? ''
+    : ' 응답이 중간에 잘렸을 수 있습니다. AI에게 "이어서 JSON 전체를 다시 출력해 줘"라고 요청해 보세요.'
+  return `JSON 형식이 올바르지 않습니다.${near}${truncated}`
+}
+
+/**
+ * 챗 AI의 응답 텍스트에서 JSON 객체를 꺼낸다.
+ * ```json 코드 블록이 있으면 우선 쓰고, 없으면 첫 '{'부터 짝이 맞는 '}'까지 읽는다.
+ */
+export function extractJson(raw: string): ExtractJsonResult {
+  const text = raw.trim()
+  if (text === '') {
+    return {
+      ok: false,
+      message: 'AI 결과가 비어 있습니다. 결과를 붙여 넣어 주세요.',
+    }
+  }
+
+  const candidates: string[] = []
+  for (const match of text.matchAll(/```[a-zA-Z]*\s*([\s\S]*?)```/g)) {
+    const inner = scanBalancedObject(match[1])
+    if (inner) candidates.push(inner)
+  }
+  const bare = scanBalancedObject(text)
+  if (bare) candidates.push(bare)
+
+  if (candidates.length === 0) {
+    return {
+      ok: false,
+      message:
+        'JSON을 찾지 못했습니다. AI 응답에서 { 로 시작하는 JSON 전체를 복사해 붙여 넣어 주세요.',
+    }
+  }
+
+  let lastError = ''
+  for (const candidate of candidates) {
+    try {
+      const value: unknown = JSON.parse(candidate)
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        !Array.isArray(value)
+      ) {
+        return { ok: true, value }
+      }
+      lastError = 'JSON 최상위는 객체({ ... })여야 합니다.'
+    } catch (error) {
+      lastError = describeParseError(candidate, error)
+    }
+  }
+  return { ok: false, message: lastError }
+}
+
+// ---------------------------------------------------------------------------
+// 검증과 수정 요청 프롬프트
+// ---------------------------------------------------------------------------
+
+export interface ResumeIssue {
+  /** 사람이 읽을 수 있는 위치 (예: 경력 2번 > 성과 3번 > 출처) */
+  location: string
+  message: string
+}
+
+export type ValidateResumeResult =
+  | { ok: true; resume: Resume }
+  | {
+      ok: false
+      /** 화면에 보여줄 요약 */
+      message: string
+      issues: ResumeIssue[]
+      /** AI에게 되돌려 붙여 넣어 결과를 고치게 하는 프롬프트 (JSON 추출에 성공한 경우만) */
+      fixPrompt?: string
+    }
+
+const SECTION_NAMES: Record<string, string> = {
+  experiences: '경력',
+  projects: '프로젝트',
+  skills: '기술',
+  educations: '학력',
+  certifications: '자격',
+  achievements: '성과',
+  sources: '출처',
+  conflicts: '충돌',
+  candidates: '후보',
+}
+
+// zod 경로 → "경력 1번 > 성과 3번 > text"
+function describePath(path: PropertyKey[]): string {
+  if (path.length === 0) return '최상위'
+  const parts: string[] = []
+  for (let i = 0; i < path.length; i++) {
+    const key = String(path[i])
+    const next = path[i + 1]
+    if (SECTION_NAMES[key] && typeof next === 'number') {
+      parts.push(`${SECTION_NAMES[key]} ${next + 1}번`)
+      i++
+    } else {
+      parts.push(SECTION_NAMES[key] ?? key)
+    }
+  }
+  return parts.join(' > ')
+}
+
+function describeIssue(issue: z.core.$ZodIssue): string {
+  switch (issue.code) {
+    case 'invalid_type':
+      return issue.message.includes('received undefined')
+        ? '필수 항목이 없습니다.'
+        : `값의 형식이 올바르지 않습니다. (필요한 형식: ${issue.expected})`
+    case 'too_small':
+      return issue.message.startsWith('Too small')
+        ? '비어 있을 수 없습니다.'
+        : issue.message
+    case 'invalid_value':
+      return '허용되지 않는 값입니다.'
+    default:
+      return issue.message
+  }
+}
+
+const MAX_ISSUES = 30
+
+export function buildFixPrompt(value: unknown, issues: ResumeIssue[]): string {
+  const list = issues
+    .slice(0, MAX_ISSUES)
+    .map((issue, index) => `${index + 1}. ${issue.location}: ${issue.message}`)
+    .join('\n')
+  const more =
+    issues.length > MAX_ISSUES
+      ? `\n(그 외 ${issues.length - MAX_ISSUES}개 오류가 더 있습니다. 같은 규칙으로 모두 고쳐 주세요.)`
+      : ''
+
+  return [
+    '아래 JSON에서 형식 오류를 찾았습니다. 내용은 바꾸지 말고, 오류만 고쳐서 JSON 전체를 다시 출력하세요.',
+    '새로운 사실을 추가하거나 값을 지어내지 마세요. 출처(documentId)가 없는 항목은 원래 근거가 된 문서의 ID를 넣고, 근거를 알 수 없으면 그 항목을 삭제하세요.',
+    '',
+    '## 발견된 오류',
+    list + more,
+    '',
+    buildSchemaInstruction(),
+    '',
+    '## 고칠 JSON',
+    '```json',
+    JSON.stringify(value, null, 2),
+    '```',
+  ].join('\n')
+}
+
+/**
+ * 붙여 넣은 AI 응답을 JSON으로 꺼내 resumeSchema로 검증한다.
+ * 실패하면 한글 오류 목록과, AI에게 되돌려 줄 수정 요청 프롬프트를 함께 반환한다.
+ */
+export function validateResumeJson(raw: string): ValidateResumeResult {
+  const extracted = extractJson(raw)
+  if (!extracted.ok) {
+    return { ok: false, message: extracted.message, issues: [] }
+  }
+
+  const parsed = resumeSchema.safeParse(extracted.value)
+  if (parsed.success) return { ok: true, resume: parsed.data }
+
+  const issues: ResumeIssue[] = parsed.error.issues.map(issue => ({
+    location: describePath(issue.path),
+    message: describeIssue(issue),
+  }))
+  return {
+    ok: false,
+    message: `결과에서 ${issues.length}개의 형식 오류를 찾았습니다.`,
+    issues,
+    fixPrompt: buildFixPrompt(extracted.value, issues),
+  }
 }
