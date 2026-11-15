@@ -43,3 +43,6 @@ next-env.d.ts
 
 # shrimp task manager 데이터 (자체 git 저장소)
 shrimp_data/
+
+# playwright MCP 스냅샷
+.playwright-mcp/
