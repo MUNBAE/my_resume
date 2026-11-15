@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useMediaQuery } from 'usehooks-ts'
 import { Menu } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -13,8 +12,9 @@ import { ThemeToggle } from '@/components/theme-toggle'
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const isMobile = useMediaQuery('(max-width: 768px)')
 
+  // 화면 폭에 따른 분기는 JS(useMediaQuery)가 아니라 CSS 클래스로 한다.
+  // JS로 분기하면 서버가 항상 데스크톱 구조를 렌더링해 모바일에서 하이드레이션 불일치가 난다.
   return (
     <header className="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 w-full border-b backdrop-blur">
       <Container>
@@ -26,22 +26,24 @@ export function Header() {
             </Link>
 
             {/* Desktop Navigation */}
-            {!isMobile && <MainNav />}
+            <div className="hidden md:block">
+              <MainNav />
+            </div>
           </div>
 
           {/* Right Side */}
           <div className="flex items-center gap-4">
-            {!isMobile && (
+            <div className="hidden md:block">
               <Link href="/login">
                 <Button variant="outline" size="sm">
                   로그인
                 </Button>
               </Link>
-            )}
+            </div>
             <ThemeToggle />
 
             {/* Mobile Menu Button */}
-            {isMobile && (
+            <div className="md:hidden">
               <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger asChild>
                   <Button variant="ghost" size="icon">
@@ -53,7 +55,7 @@ export function Header() {
                   <MobileNav onClose={() => setMobileMenuOpen(false)} />
                 </SheetContent>
               </Sheet>
-            )}
+            </div>
           </div>
         </div>
       </Container>
