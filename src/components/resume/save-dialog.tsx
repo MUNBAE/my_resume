@@ -3,6 +3,9 @@
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { ErrorNotice } from '@/components/resume/error-notice'
+import { postJson, type FailureKind } from '@/lib/api-client'
+
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -38,6 +41,11 @@ export function SaveDialog({
   const [url, setUrl] = useState('')
   // state 갱신 전에 연속 클릭이 들어와도 요청이 한 번만 나가도록 ref로 막는다
   const inFlight = useRef(false)
+  const [saveError, setSaveError] = useState<{
+    message: string
+    kind: FailureKind
+    retryable: boolean
+  } | null>(null)
 
   async function save() {
     if (inFlight.current || status === 'saved') return
@@ -47,30 +55,26 @@ export function SaveDialog({
     }
     inFlight.current = true
     setStatus('saving')
-    try {
-      const response = await fetch('/api/resume/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, resume }),
-      })
-      const data = (await response.json()) as {
-        url?: string
-        error?: string
-      }
-      if (!response.ok) {
-        throw new Error(data.error ?? '저장하지 못했습니다.')
-      }
-      setUrl(data.url ?? '')
-      setStatus('saved')
-      toast.success('Notion에 저장했습니다.')
-    } catch (error) {
+    setSaveError(null)
+    const response = await postJson<{ url?: string }>('/api/resume/save', {
+      title,
+      resume,
+    })
+    inFlight.current = false
+
+    if (!response.ok) {
       setStatus('idle')
-      toast.error(
-        error instanceof Error ? error.message : '저장하지 못했습니다.'
-      )
-    } finally {
-      inFlight.current = false
+      setSaveError({
+        message: response.message,
+        kind: response.kind,
+        retryable: response.retryable,
+      })
+      toast.error(response.message)
+      return
     }
+    setUrl(response.data.url ?? '')
+    setStatus('saved')
+    toast.success('Notion에 저장했습니다.')
   }
 
   return (
@@ -118,6 +122,21 @@ export function SaveDialog({
               onChange={event => setTitle(event.target.value)}
             />
           </div>
+        )}
+
+        {saveError && (
+          <ErrorNotice
+            message={saveError.message}
+            kind={saveError.kind}
+            // 응답을 못 받은 실패(네트워크·시간 초과·서버)는 Notion에 이미 만들어졌을 수 있다
+            note={
+              ['network', 'timeout', 'server'].includes(saveError.kind)
+                ? 'Notion에 페이지가 이미 만들어졌을 수 있습니다. 포트폴리오 페이지 아래를 확인한 뒤 다시 시도하면 중복 저장을 피할 수 있습니다.'
+                : undefined
+            }
+            onRetry={saveError.retryable ? save : undefined}
+            retrying={status === 'saving'}
+          />
         )}
 
         <DialogFooter>

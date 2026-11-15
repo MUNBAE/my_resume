@@ -5,10 +5,12 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { CopyButton } from '@/components/resume/copy-button'
+import { ErrorNotice } from '@/components/resume/error-notice'
 import { ResumeSelectList } from '@/components/resume/resume-select-list'
 import { SelectAllBar } from '@/components/resume/select-all-bar'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { postJson, type FailureKind } from '@/lib/api-client'
 import type { PromptLengthReport } from '@/lib/merge-prompt'
 import { saveMergeDraft } from '@/lib/merge-session'
 import type { NotionDocument } from '@/lib/notion'
@@ -21,8 +23,13 @@ interface PromptData {
   documentIds: string[]
 }
 
-interface MergeFailure {
+interface PromptError {
   message: string
+  kind: FailureKind
+  retryable: boolean
+}
+
+interface MergeFailure extends PromptError {
   issues: { location: string; message: string }[]
   fixPrompt?: string
 }
@@ -41,96 +48,81 @@ export function ResumeSelector({ documents }: ResumeSelectorProps) {
   const [generating, setGenerating] = useState(false)
   const [result, setResult] = useState('')
   const [verifying, setVerifying] = useState(false)
+  const [promptError, setPromptError] = useState<PromptError | null>(null)
   const [failure, setFailure] = useState<MergeFailure | null>(null)
 
   async function generatePrompt() {
     if (generating) return
     setGenerating(true)
     setFailure(null)
-    try {
-      const response = await fetch('/api/resume/prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentIds: selectedIds }),
+    setPromptError(null)
+    const response = await postJson<PromptData>('/api/resume/prompt', {
+      documentIds: selectedIds,
+    })
+    setGenerating(false)
+
+    if (!response.ok) {
+      setPromptError({
+        message: response.message,
+        kind: response.kind,
+        retryable: response.retryable,
       })
-      const data = (await response.json()) as PromptData & { error?: string }
-      if (!response.ok)
-        throw new Error(data.error ?? '프롬프트를 만들지 못했습니다.')
-      if (data.documentIds.length === 0) {
-        throw new Error(
-          '선택한 문서에 본문이 없어 프롬프트를 만들 수 없습니다.'
-        )
-      }
-      setPromptData(data)
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : '프롬프트를 만들지 못했습니다.'
-      )
-    } finally {
-      setGenerating(false)
+      return
     }
+    if (response.data.documentIds.length === 0) {
+      setPromptError({
+        message: '선택한 문서에 본문이 없어 프롬프트를 만들 수 없습니다.',
+        kind: 'request',
+        retryable: false,
+      })
+      return
+    }
+    setPromptData(response.data)
   }
 
   async function verifyResult() {
     if (verifying || !promptData) return
     setVerifying(true)
     setFailure(null)
-    try {
-      const response = await fetch('/api/resume/merge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          documentIds: promptData.documentIds,
-          result,
-        }),
-      })
-      const data = (await response.json()) as {
-        resume?: Resume
-        warnings?: string[]
-        error?: string
-        issues?: MergeFailure['issues']
-        fixPrompt?: string
-      }
+    const response = await postJson<{ resume: Resume; warnings?: string[] }>(
+      '/api/resume/merge',
+      { documentIds: promptData.documentIds, result }
+    )
+    setVerifying(false)
 
-      if (!response.ok || !data.resume) {
-        setFailure({
-          message: data.error ?? '결과를 검증하지 못했습니다.',
-          issues: data.issues ?? [],
-          fixPrompt: data.fixPrompt,
-        })
-        return
-      }
-
-      const used = documents.filter(d => promptData.documentIds.includes(d.id))
-      const saved = saveMergeDraft({
-        resume: data.resume,
-        warnings: data.warnings ?? [],
-        documents: used.map(d => ({
-          id: d.id,
-          title: d.title,
-          lastEditedTime: d.lastEditedTime,
-        })),
-      })
-      if (!saved) {
-        toast.error(
-          '브라우저 저장소를 사용할 수 없어 미리보기로 넘기지 못했습니다.'
-        )
-        return
-      }
-      router.push('/resume/merge')
-    } catch {
+    if (!response.ok) {
       setFailure({
-        message:
-          '검증 요청에 실패했습니다. 네트워크를 확인하고 다시 시도해 주세요.',
-        issues: [],
+        message: response.message,
+        kind: response.kind,
+        retryable: response.retryable,
+        issues: (response.body?.issues as MergeFailure['issues']) ?? [],
+        fixPrompt: response.body?.fixPrompt as string | undefined,
       })
-    } finally {
-      setVerifying(false)
+      return
     }
+
+    const used = documents.filter(d => promptData.documentIds.includes(d.id))
+    const saved = saveMergeDraft({
+      resume: response.data.resume,
+      warnings: response.data.warnings ?? [],
+      documents: used.map(d => ({
+        id: d.id,
+        title: d.title,
+        lastEditedTime: d.lastEditedTime,
+      })),
+    })
+    if (!saved) {
+      toast.error(
+        '브라우저 저장소를 사용할 수 없어 미리보기로 넘기지 못했습니다.'
+      )
+      return
+    }
+    router.push('/resume/merge')
   }
 
   const resetPrompt = () => {
     setPromptData(null)
+    setPromptError(null)
     setResult('')
     setFailure(null)
   }
@@ -161,6 +153,14 @@ export function ResumeSelector({ documents }: ResumeSelectorProps) {
         >
           {generating ? '프롬프트 만드는 중…' : '프롬프트 생성'}
         </Button>
+        {promptError && (
+          <ErrorNotice
+            message={promptError.message}
+            kind={promptError.kind}
+            onRetry={promptError.retryable ? generatePrompt : undefined}
+            retrying={generating}
+          />
+        )}
       </div>
 
       {promptData && (
@@ -244,7 +244,16 @@ export function ResumeSelector({ documents }: ResumeSelectorProps) {
             </div>
           </div>
 
-          {failure && (
+          {failure && failure.issues.length === 0 && !failure.fixPrompt && (
+            // 결과 내용 문제가 아닌 실패(네트워크·인증·서버 등, 또는 JSON 없음): 유형별 안내와 재시도
+            <ErrorNotice
+              message={failure.message}
+              kind={failure.kind}
+              onRetry={failure.retryable ? verifyResult : undefined}
+              retrying={verifying}
+            />
+          )}
+          {failure && (failure.issues.length > 0 || failure.fixPrompt) && (
             <div
               role="alert"
               className="border-destructive/50 space-y-3 rounded-md border p-3"
