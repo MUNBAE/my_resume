@@ -167,3 +167,123 @@ export function normalizeResume(resume: Resume): Resume {
     educations: sortByLatest(dedupeEducations(resume.educations)),
   }
 }
+
+// ---------------------------------------------------------------------------
+// 출처 검증: AI가 지어낸 문서 ID를 걸러낸다 (환각 방지, PRD §3.3·§10)
+// ---------------------------------------------------------------------------
+
+export interface InputDocumentRef {
+  id: string
+  title: string
+}
+
+export interface SourceValidationResult {
+  resume: Resume
+  /** 제거·정리한 내용 (사용자에게 보여준다) */
+  warnings: string[]
+}
+
+/**
+ * 모든 출처가 실제 입력 문서를 가리키는지 확인한다.
+ * - 입력에 없는 문서 ID는 제거하고, 제목은 실제 문서 제목으로 바로잡는다.
+ * - 유효한 출처가 하나도 남지 않은 성과·항목은 근거가 없으므로 제외한다.
+ * - 후보가 2개 미만으로 줄어든 충돌은 더 이상 충돌이 아니므로 제거한다.
+ */
+export function validateSources(
+  resume: Resume,
+  inputDocuments: readonly InputDocumentRef[]
+): SourceValidationResult {
+  const titleById = new Map(inputDocuments.map(d => [d.id, d.title]))
+  const warnings: string[] = []
+
+  const clean = (sources: SourceRef[], where: string): SourceRef[] => {
+    const kept: SourceRef[] = []
+    for (const source of sources) {
+      const title = titleById.get(source.documentId)
+      if (title === undefined) {
+        warnings.push(
+          `${where}: 입력에 없는 출처(${source.documentId})를 제거했습니다.`
+        )
+      } else {
+        kept.push({ documentId: source.documentId, title })
+      }
+    }
+    return kept
+  }
+
+  const cleanAchievements = (
+    achievements: Achievement[],
+    where: string
+  ): Achievement[] => {
+    const result: Achievement[] = []
+    for (const a of achievements) {
+      const sources = clean(a.sources, `${where} 성과 "${a.text.slice(0, 20)}"`)
+      if (sources.length === 0) {
+        warnings.push(
+          `${where}: 유효한 출처가 없는 성과 "${a.text.slice(0, 20)}"를 제외했습니다.`
+        )
+      } else {
+        result.push({ ...a, sources })
+      }
+    }
+    return result
+  }
+
+  const cleanConflicts = (conflicts: Conflict[], where: string): Conflict[] => {
+    const result: Conflict[] = []
+    for (const c of conflicts) {
+      const candidates = c.candidates
+        .map(candidate => ({
+          ...candidate,
+          sources: clean(candidate.sources, `${where} ${c.field} 충돌 후보`),
+        }))
+        .filter(candidate => candidate.sources.length > 0)
+      if (candidates.length >= 2) {
+        result.push({ ...c, candidates })
+      } else {
+        warnings.push(`${where}: 근거가 부족한 ${c.field} 충돌을 제거했습니다.`)
+      }
+    }
+    return result
+  }
+
+  // 항목 공통 처리: 출처·충돌·(있으면) 성과를 정리하고 근거 없는 항목은 제외한다
+  function cleanItems<
+    T extends {
+      sources: SourceRef[]
+      conflicts: Conflict[]
+      achievements?: Achievement[]
+    },
+  >(items: readonly T[], label: (item: T) => string, kind: string): T[] {
+    const result: T[] = []
+    for (const item of items) {
+      const where = `${kind} "${label(item)}"`
+      const sources = clean(item.sources, where)
+      if (sources.length === 0) {
+        warnings.push(`${where}: 유효한 출처가 없어 항목을 제외했습니다.`)
+        continue
+      }
+      const next = {
+        ...item,
+        sources,
+        conflicts: cleanConflicts(item.conflicts, where),
+      }
+      if (item.achievements) {
+        next.achievements = cleanAchievements(item.achievements, where)
+      }
+      result.push(next)
+    }
+    return result
+  }
+
+  return {
+    resume: {
+      experiences: cleanItems(resume.experiences, e => e.company, '경력'),
+      projects: cleanItems(resume.projects, p => p.name, '프로젝트'),
+      skills: cleanItems(resume.skills, s => s.name, '기술'),
+      educations: cleanItems(resume.educations, e => e.school, '학력'),
+      certifications: cleanItems(resume.certifications, c => c.name, '자격'),
+    },
+    warnings,
+  }
+}

@@ -376,3 +376,54 @@ export function validateResumeJson(raw: string): ValidateResumeResult {
     fixPrompt: buildFixPrompt(extracted.value, issues),
   }
 }
+
+// ---------------------------------------------------------------------------
+// 프롬프트 길이 점검
+// ---------------------------------------------------------------------------
+
+/** 이 글자 수를 넘으면 결과 JSON이 중간에 잘리거나 품질이 떨어질 수 있어 경고한다 */
+export const PROMPT_WARN_CHARS = 40_000
+/** 이 글자 수를 넘으면 한 번에 실행하지 말고 문서를 나눠 실행하도록 안내한다 */
+export const PROMPT_MAX_CHARS = 100_000
+
+export type PromptLengthLevel = 'ok' | 'warn' | 'too_long'
+
+export interface PromptLengthReport {
+  /** 지시문과 문서를 합친 프롬프트 전체 글자 수 */
+  totalChars: number
+  /** 문서별 본문 글자 수 (긴 순) */
+  perDocument: { id: string; title: string; chars: number }[]
+  level: PromptLengthLevel
+  /** 화면에 보여줄 안내 문장 (ok면 빈 문자열) */
+  message: string
+}
+
+export function checkPromptLength(
+  documents: PromptDocument[],
+  limits: { warn?: number; max?: number } = {}
+): PromptLengthReport {
+  const warn = limits.warn ?? PROMPT_WARN_CHARS
+  const max = limits.max ?? PROMPT_MAX_CHARS
+  const totalChars = buildMergePrompt(documents).length
+  const perDocument = documents
+    .map(d => ({ id: d.id, title: d.title, chars: d.text.length }))
+    .sort((a, b) => b.chars - a.chars)
+
+  const level: PromptLengthLevel =
+    totalChars > max ? 'too_long' : totalChars > warn ? 'warn' : 'ok'
+
+  const biggest = perDocument
+    .slice(0, 3)
+    .map(d => `${d.title}(${d.chars.toLocaleString('ko-KR')}자)`)
+    .join(', ')
+  const total = totalChars.toLocaleString('ko-KR')
+
+  const message =
+    level === 'too_long'
+      ? `프롬프트가 ${total}자로 너무 깁니다. 한 번에 실행하면 AI가 끝까지 처리하지 못할 수 있어요. 분량이 큰 문서(${biggest})를 제외하고 나눠서 실행해 주세요.`
+      : level === 'warn'
+        ? `프롬프트가 ${total}자로 깁니다. 결과가 중간에 잘리면 분량이 큰 문서(${biggest})를 제외하고 다시 시도해 주세요.`
+        : ''
+
+  return { totalChars, perDocument, level, message }
+}
